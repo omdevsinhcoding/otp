@@ -23,7 +23,6 @@ FOLDERS = [
     "bot/services/points",
     "bot/services/analytics",
     "bot/services/broadcast",
-    "bot/services/wealthora",
     "bot/services/logger",
     "bot/middlewares",
     "bot/models",
