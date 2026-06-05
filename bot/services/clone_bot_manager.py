@@ -58,24 +58,36 @@ class CloneBotManager:
             import bot.handlers.admin as admin
             import bot.handlers.admin.broadcast_flow as broadcast_flow
             import bot.handlers.vault as vault
+            from bot.handlers.start import MAIN_MENU_REPLY_KEYBOARD
             
             # The back_to_menu callback needs to be custom imported
             async def back_to_menu_callback(update, context):
                 query = update.callback_query
-                await query.answer()
+                if query:
+                    await query.answer()
                 from bot.models.user_model import get_user
-                user_record = await get_user(query.from_user.id)
+                user_record = await get_user(update.effective_user.id)
                 # Important: clones omit the "Create Bot" key!
                 from bot.handlers.start import show_main_menu_message
                 await show_main_menu_message(update, context, user_record)
+
+            async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+                """Log the error and send a telegram message to notify the developer."""
+                logger.error(msg=f"Exception in Clone ID {clone_id}:", exc_info=context.error)
             
             # Use same handlers but we need to somehow flag to 'start_cmd' that this is a clone
             # PTB allows `context.bot_data["is_clone"] = True`
             app.bot_data["is_clone"] = True
             app.bot_data["clone_id"] = clone_id
             
+            app.add_error_handler(error_handler)
+            
             app.add_handler(CommandHandler("start", start_cmd))
             app.add_handler(CommandHandler("admin", admin.admin_panel))
+            
+            # Menu message handlers
+            app.add_handler(MessageHandler(filters.Regex("^⬅️ Menu$"), back_to_menu_callback))
+            
             app.add_handler(CallbackQueryHandler(back_to_menu_callback, pattern="^back_to_menu$"))
             app.add_handler(CallbackQueryHandler(verify_join_callback, pattern="^verify_join$"))
             

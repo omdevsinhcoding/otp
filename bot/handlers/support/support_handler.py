@@ -16,7 +16,6 @@ async def support_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     keyboard = [
-        [InlineKeyboardButton("💬 Message Administrator", url="https://t.me/omdevsinhgohilcoding")],
-        [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_to_menu")]
+        [InlineKeyboardButton("💬 Message Administrator", url="https://t.me/omdevsinhgohilcoding")]
     ]
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))

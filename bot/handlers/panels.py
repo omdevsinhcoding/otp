@@ -26,11 +26,14 @@ async def add_panel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Check if user has enough points
     from bot.models.user_model import get_user
+    from bot.middlewares.auth_check import is_admin
     user_record = await get_user(user_id)
     cost = await get_setting("cost_add_panel", 20)
+    is_adm = await is_admin(user_id)
+    is_vip = user_record.get('is_vip', False)
     
-    # If not VIP, check points
-    if not user_record.get('is_vip') and user_record.get('points', 0) < cost:
+    # If not VIP or Admin, check points
+    if not is_vip and not is_adm and user_record.get('points', 0) < cost:
         await query.edit_message_text(
             f"🚫 **Insufficient Points!**\n\nYou need **{cost} points** to add a new panel.\n"
             f"Current balance: `{user_record.get('points', 0)} points`\n\n"
@@ -42,7 +45,7 @@ async def add_panel_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     panels = await get_user_panels(user_id)
     panel_limit = await get_setting("max_panels_per_user", 5)
     
-    if len(panels) >= panel_limit:
+    if not is_adm and len(panels) >= panel_limit:
         await query.edit_message_text(
             f"🚫 **Limit Reached!**\n\nYou have already registered **{len(panels)}/{panel_limit} panels**.\n"
             f"Delete one from 'My Panels' before adding more.",
@@ -142,10 +145,13 @@ async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Deduct standard points for Add Panel feature before executing
         cost = await get_setting("cost_add_panel", 20)
         from bot.models.user_model import get_user
+        from bot.middlewares.auth_check import is_admin
         user_record = await get_user(user_id)
         
+        is_adm = await is_admin(user_id)
         is_vip = user_record.get('is_vip', False) if user_record else False
-        if not is_vip:
+        
+        if not is_vip and not is_adm:
             new_bal = await update_user_points(user_id, -cost)
             if new_bal is None:
                 await update.message.reply_text(f"🚫 **Insufficient Points!** You need {cost} points to add a panel.")
@@ -154,7 +160,7 @@ async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Insert records inside Neon DB
         added = await add_panel(user_id, url)
         if added:
-            if not is_vip:
+            if not is_vip and not is_adm:
                 await update.message.reply_text(f"💳 Standard fee of **{cost} pts** deducted successfully from wallet.")
             
             # Notify admins
@@ -166,12 +172,13 @@ async def process_url(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     admin_bot = Bot(BOT_TOKEN)
                     msg_text = f"🔔 **New Panel Added!**\n\n👤 User ID: `{user_id}`\n📋 URL: `{url}`"
                     for adm_id in ADMINS:
-                        await admin_bot.send_message(chat_id=adm_id, text=msg_text)
+                        if adm_id != user_id: # Don't notify self
+                             await admin_bot.send_message(chat_id=adm_id, text=msg_text)
                 except Exception as e:
                     logger.error(f"Failed to notify admins of new panel: {e}")
         else:
             # Revert points if db fail
-            if not is_vip:
+            if not is_vip and not is_adm:
                 await update_user_points(user_id, cost)
             await update.message.reply_text("Failed to register database inside system.")
             

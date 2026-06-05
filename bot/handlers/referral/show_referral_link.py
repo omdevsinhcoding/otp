@@ -31,7 +31,7 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = bot_info.username
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
     
-    msg_text = (
+    text = (
         f"👥 **Refer & Earn Program**\n\n"
         f"Share your link with friends to get points! Once they start the bot and join mandatory channels, you earn credits immediately.\n\n"
         f"💰 **Points per successful referral:** `{pts_per_ref} points`\n"
@@ -40,5 +40,4 @@ async def referral_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"_Tap link to copy it instantly format._"
     )
     
-    keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_to_menu")]]
-    await query.edit_message_text(msg_text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(text)

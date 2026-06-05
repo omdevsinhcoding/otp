@@ -14,8 +14,7 @@ async def my_panels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     active_panel = context.user_data.get("active_panel")
     
     if not panels:
-        keyboard = [[InlineKeyboardButton("➕ Add New Panel", callback_data="add_panel")],
-                    [InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_to_menu")]]
+        keyboard = [[InlineKeyboardButton("➕ Add New Panel", callback_data="add_panel")]]
         await query.edit_message_text(
             "⚠️ **No Panels Found!**\n\nYou haven't registered any Firebase Realtime Databases yet.\n"
             "Press below to connect your first board.",
@@ -37,7 +36,6 @@ async def my_panels_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             callback_data=f"selpanel_{p['id']}"
         )])
         
-    keyboard.append([InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_to_menu")])
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def handle_panel_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):

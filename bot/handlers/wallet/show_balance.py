@@ -34,5 +34,4 @@ async def wallet_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💡 _Tip: Earn points by referring friends. Hit the referral tab from the main menu!_"
     )
     
-    keyboard = [[InlineKeyboardButton("⬅️ Back to Menu", callback_data="back_to_menu")]]
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await query.edit_message_text(text)

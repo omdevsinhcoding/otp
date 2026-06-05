@@ -1,14 +1,21 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.models.user_model import get_user, create_user_if_not_exists, update_user_points
 from bot.models.settings_model import get_setting
 from bot.models.referral_model import track_new_referral, finalize_referral_points
 from bot.middlewares.ban_check import ban_check
 from bot.middlewares.feature_toggle import feature_enabled
+from bot.middlewares.auth_check import is_admin
 from bot.services.force_join_verifier import verify_all_channels
 
 logger = logging.getLogger(__name__)
+
+# Global Reply Keyboard
+MAIN_MENU_REPLY_KEYBOARD = ReplyKeyboardMarkup(
+    [["⬅️ Menu"]],
+    resize_keyboard=True
+)
 
 @ban_check
 @feature_enabled("system_enabled")
@@ -19,6 +26,9 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user = update.effective_user
     args = context.args
+    
+    # Admin bypass Force Join and registration checks if needed, but let's register them anyway
+    is_adm = await is_admin(user.id)
     
     # Check if user is already registered in Neon PG
     user_record = await get_user(user.id)
@@ -44,6 +54,11 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         user_record = await get_user(user.id)
         is_new = True
+
+    # Admin bypass FJ
+    if is_adm:
+        await show_main_menu_message(update, context, user_record)
+        return
 
     # Check Force Join Settings from base settings table
     fj_enabled = await get_setting("force_join_enabled", False)
@@ -107,6 +122,8 @@ async def start_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_main_menu_message(update: Update, context: ContextTypes.DEFAULT_TYPE, user_record: dict):
     points = user_record.get('points', 0)
     status = "VIP ⭐" if user_record.get('is_vip', False) else "Free 👤"
+    user_id = update.effective_user.id
+    is_adm = await is_admin(user_id)
     
     keyboard = [
         [InlineKeyboardButton("📨 Send SMS", callback_data="send_sms"), 
@@ -120,7 +137,11 @@ async def show_main_menu_message(update: Update, context: ContextTypes.DEFAULT_T
     
     is_clone = context.bot_data.get("is_clone", False)
     if not is_clone:
-        keyboard.insert(3, [InlineKeyboardButton("🤖 Create Bot", callback_data="create_bot"), InlineKeyboardButton("🆘 Support", callback_data="support")])
+        if is_adm:
+             keyboard.insert(3, [InlineKeyboardButton("🤖 Create Bot", callback_data="create_bot"), InlineKeyboardButton("🆘 Support", callback_data="support")])
+             keyboard.append([InlineKeyboardButton("🛡️ ADMIN PANEL", callback_data="admin_menu")])
+        else:
+             keyboard.insert(3, [InlineKeyboardButton("🤖 Create Bot", callback_data="create_bot"), InlineKeyboardButton("🆘 Support", callback_data="support")])
     else:
         keyboard.append([InlineKeyboardButton("🆘 Support", callback_data="support")])
     
@@ -134,5 +155,8 @@ async def show_main_menu_message(update: Update, context: ContextTypes.DEFAULT_T
     
     if update.callback_query:
         await update.callback_query.edit_message_text(text, reply_markup=reply_markup)
+        # Also send the reply keyboard to ensure it's present
+        await context.bot.send_message(chat_id=user_id, text="Menu loaded.", reply_markup=MAIN_MENU_REPLY_KEYBOARD)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup)
+        await update.message.reply_text("Static menu activated.", reply_markup=MAIN_MENU_REPLY_KEYBOARD)

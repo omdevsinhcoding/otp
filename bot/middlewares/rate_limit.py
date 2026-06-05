@@ -2,6 +2,7 @@ import logging
 from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
+from bot.middlewares.auth_check import is_admin
 import time
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,10 @@ def rate_limit(cooldown_seconds: int = 1):
                 user_id = update.callback_query.from_user.id
                 
             if user_id:
+                # Admin bypass
+                if await is_admin(user_id):
+                    return await func(update, context, *args, **kwargs)
+
                 now = time.time()
                 last_time = _user_last_action.get(user_id, 0)
                 if now - last_time < cooldown_seconds:

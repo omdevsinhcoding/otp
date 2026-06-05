@@ -57,12 +57,41 @@ def main():
     # Back to Menu handler
     async def back_to_menu_callback(update, context):
         query = update.callback_query
-        await query.answer()
-        user_record = await start_cmd.get_user(query.from_user.id)
+        if query:
+            await query.answer()
+        
+        user_id = update.effective_user.id
+        from bot.models.user_model import get_user
+        user_record = await get_user(user_id)
+        
         # Import to avoid circular refs
         from bot.handlers.start import show_main_menu_message
         await show_main_menu_message(update, context, user_record)
+
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Log the error and send a telegram message to notify the developer."""
+        logger.error(msg="Exception while handling an update:", exc_info=context.error)
         
+        # Optional: notify admin
+        try:
+            if update and update.effective_user:
+                 await context.bot.send_message(
+                     chat_id=update.effective_user.id,
+                     text="⚠️ **An internal error occurred.**\nThe technical team has been notified. Please try again later."
+                 )
+        except:
+            pass
+
+    # Global Error Handler
+    app.add_error_handler(error_handler)
+    
+    # Core Commands
+    app.add_handler(CommandHandler("start", start_cmd))
+    app.add_handler(CommandHandler("admin", admin.admin_panel))
+    
+    # Menu message handlers
+    app.add_handler(MessageHandler(filters.Regex("^⬅️ Menu$"), back_to_menu_callback))
+    
     app.add_handler(CallbackQueryHandler(back_to_menu_callback, pattern="^back_to_menu$"))
     
     # Verification triggers

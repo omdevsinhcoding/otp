@@ -2,6 +2,7 @@ from functools import wraps
 from telegram import Update
 from telegram.ext import ContextTypes
 from bot.models.user_model import get_user
+from bot.middlewares.auth_check import is_admin
 
 def ban_check(func):
     """
@@ -11,6 +12,11 @@ def ban_check(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user_id = update.effective_user.id
+        
+        # Admin bypass
+        if await is_admin(user_id):
+            return await func(update, context, *args, **kwargs)
+            
         user_record = await get_user(user_id)
         
         if user_record and user_record.get('is_banned', False):

@@ -3,6 +3,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from bot.models.user_model import get_user
 from bot.models.settings_model import get_setting
+from bot.middlewares.auth_check import is_admin
 
 def points_required(feature_key: str):
     """
@@ -15,6 +16,10 @@ def points_required(feature_key: str):
         async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
             user_id = update.effective_user.id
             
+            # Admin bypass points requirement
+            if await is_admin(user_id):
+                return await func(update, context, *args, **kwargs)
+
             # Check if points feature is globally toggled on
             pts_system_active = await get_setting("feature_points", True)
             if not pts_system_active:

@@ -4,6 +4,16 @@ from telegram.ext import ContextTypes
 from bot.config import SUPREME_ADMIN_ID
 from bot.models.settings_model import get_setting
 
+async def is_admin(user_id: int) -> bool:
+    """Checks if user_id is the supreme admin or a registered sub-admin."""
+    if user_id == SUPREME_ADMIN_ID:
+        return True
+    
+    admin_list = await get_setting("admin_ids", [])
+    if user_id in admin_list:
+        return True
+    return False
+
 def admin_only(func):
     """
     Blocks command execution unless the sender ID matches SUPREME_ADMIN_ID 
@@ -12,12 +22,7 @@ def admin_only(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
         user_id = update.effective_user.id
-        if user_id == SUPREME_ADMIN_ID:
-            return await func(update, context, *args, **kwargs)
-            
-        # Check sub-admins config in neon settings
-        admin_list = await get_setting("admin_ids", [])
-        if user_id in admin_list:
+        if await is_admin(user_id):
             return await func(update, context, *args, **kwargs)
 
         if update.callback_query:
