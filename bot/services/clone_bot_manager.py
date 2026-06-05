@@ -56,6 +56,7 @@ class CloneBotManager:
             import bot.handlers.sms.send_sms as send_sms
             import bot.handlers.sms.receive_sms as receive_sms
             import bot.handlers.admin as admin
+            import bot.handlers.admin.broadcast_flow as broadcast_flow
             import bot.handlers.vault as vault
             
             # The back_to_menu callback needs to be custom imported
@@ -125,8 +126,14 @@ class CloneBotManager:
             app.add_handler(CallbackQueryHandler(admin.handle_killswitch_toggle, pattern="^killsys_.*$"))
             
             broadcast_conv = ConversationHandler(
-                entry_points=[CallbackQueryHandler(admin.broadcast_start, pattern="^adm_broadcast$")],
-                states={admin.AWAITING_BROADCAST: [MessageHandler(filters.TEXT & ~filters.COMMAND, admin.broadcast_processing)]},
+                entry_points=[CallbackQueryHandler(broadcast_flow.broadcast_start, pattern="^adm_broadcast$")],
+                states={
+                    broadcast_flow.AWAIT_MSG: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_flow.receive_msg)],
+                    broadcast_flow.AWAIT_Q_BTN: [CallbackQueryHandler(broadcast_flow.q_btn_callback, pattern="^bcbtn_.*$")],
+                    broadcast_flow.AWAIT_BTN_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_flow.receive_btn_text)],
+                    broadcast_flow.AWAIT_BTN_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, broadcast_flow.receive_btn_url)],
+                    broadcast_flow.AWAIT_PREVIEW_CONFIRM: [CallbackQueryHandler(broadcast_flow.send_broadcast_all, pattern="^bc_.*$")],
+                },
                 fallbacks=[CommandHandler("cancel", start_cmd)]
             )
             app.add_handler(broadcast_conv)

@@ -8,6 +8,7 @@ from bot.models.settings_model import get_setting
 from bot.middlewares.ban_check import ban_check
 from bot.middlewares.feature_toggle import feature_enabled
 from bot.middlewares.rate_limit import rate_limit
+from bot.database import db
 from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
