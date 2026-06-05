@@ -1,6 +1,6 @@
 import asyncpg
 import logging
-from config import DATABASE_URL
+from bot.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 pool = None

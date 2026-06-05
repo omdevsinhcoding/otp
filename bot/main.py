@@ -3,34 +3,31 @@ import sys
 import os
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 
-# Add bot directory bounds to sys.path
-sys.path.insert(0, os.path.dirname(__file__))
-
-from config import BOT_TOKEN
-from database import db
-from handlers.start import start_cmd
-from handlers.start.verify_join import verify_join_callback
-from handlers.referral.show_referral_link import referral_menu
-from handlers.wallet.show_balance import wallet_menu
-from handlers.support.support_handler import support_menu
-from handlers.list_panels import my_panels_menu, handle_panel_selection, handle_panel_deletion
+from bot.config import BOT_TOKEN
+from bot.database import db
+from bot.handlers.start import start_cmd
+from bot.handlers.start.verify_join import verify_join_callback
+from bot.handlers.referral.show_referral_link import referral_menu
+from bot.handlers.wallet.show_balance import wallet_menu
+from bot.handlers.support.support_handler import support_menu
+from bot.handlers.list_panels import my_panels_menu, handle_panel_selection, handle_panel_deletion
 
 # Panels addition conversations
-from handlers.panels import add_panel_start, process_url, AWAITING_URL
+from bot.handlers.panels import add_panel_start, process_url, AWAITING_URL
 
 # SMS custom handlers
-import handlers.sms.send_sms as send_sms
-import handlers.sms.receive_sms as receive_sms
+import bot.handlers.sms.send_sms as send_sms
+import bot.handlers.sms.receive_sms as receive_sms
 
 # Clone handlers
-import handlers.clone.create_bot as create_bot
+import bot.handlers.clone.create_bot as create_bot
 
 # Super admin controller
-import handlers.admin as admin
+import bot.handlers.admin as admin
 
 # Data Vault
-import handlers.vault as vault
-from utils.logger import setup_logger
+import bot.handlers.vault as vault
+from bot.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
@@ -63,7 +60,7 @@ def main():
         await query.answer()
         user_record = await start_cmd.get_user(query.from_user.id)
         # Import to avoid circular refs
-        from handlers.start import show_main_menu_message
+        from bot.handlers.start import show_main_menu_message
         await show_main_menu_message(update, context, user_record)
         
     app.add_handler(CallbackQueryHandler(back_to_menu_callback, pattern="^back_to_menu$"))
@@ -140,8 +137,8 @@ def main():
     app.add_handler(clone_conv)
     
     # Super Admin Controllers (Telemetry logs, dials, stats)
-    import handlers.admin.users as adm_users
-    import handlers.admin.user_search as adm_user_search
+    import bot.handlers.admin.users as adm_users
+    import bot.handlers.admin.user_search as adm_user_search
     
     app.add_handler(CallbackQueryHandler(admin.admin_panel, pattern="^admin_menu$"))
     app.add_handler(CallbackQueryHandler(admin.analytics_view, pattern="^adm_analytics$"))
@@ -149,10 +146,10 @@ def main():
     app.add_handler(CallbackQueryHandler(admin.handle_killswitch_toggle, pattern="^killsys_.*$"))
     
     # Advanced Admin features
-    import handlers.admin.clones as adm_clones
-    import handlers.admin.settings_flow as settings_flow
-    import handlers.admin.points as adm_points
-    import handlers.admin.logs as adm_logs
+    import bot.handlers.admin.clones as adm_clones
+    import bot.handlers.admin.settings_flow as settings_flow
+    import bot.handlers.admin.points as adm_points
+    import bot.handlers.admin.logs as adm_logs
     
     app.add_handler(CallbackQueryHandler(adm_users.users_list_menu, pattern="^adm_users$"))
     app.add_handler(CallbackQueryHandler(adm_user_search.handle_user_actions, pattern="^(admban_|admunban_|admptadd_|admptsub_|admbta_|admbtm_).*$"))
@@ -194,7 +191,7 @@ def main():
     app.add_handler(user_search_conv)
     
     # HTML Broadcaster dialog conversation
-    import handlers.admin.broadcast_flow as broadcast_flow
+    import bot.handlers.admin.broadcast_flow as broadcast_flow
     broadcast_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(broadcast_flow.broadcast_start, pattern="^adm_broadcast$")],
         states={
