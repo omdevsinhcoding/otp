@@ -1,7 +1,16 @@
 import logging
 import sys
 import os
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+    ConversationHandler,
+    ContextTypes,
+)
+from telegram import Update
 
 from bot.config import BOT_TOKEN
 from bot.database import db
@@ -31,6 +40,37 @@ from bot.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+async def back_to_menu_callback(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """Returns the user to the main menu."""
+    if not isinstance(update, Update):
+        return
+        
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    user_id = update.effective_user.id
+    from bot.models.user_model import get_user
+    user_record = await get_user(user_id)
+    
+    # Import to avoid circular refs
+    from bot.handlers.start import show_main_menu_message
+    await show_main_menu_message(update, context, user_record)
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log the error and send a telegram message to notify the developer."""
+    logger.error(msg="Exception while handling an update:", exc_info=context.error)
+    
+    # Optional: notify user
+    try:
+        if isinstance(update, Update) and update.effective_user:
+             await context.bot.send_message(
+                 chat_id=update.effective_user.id,
+                 text="⚠️ **An internal error occurred.**\nThe technical team has been notified. Please try again later."
+             )
+    except Exception as e:
+        logger.warning(f"Failed to send error notification: {e}")
+
 async def post_init(application: Application):
     """Initialises Neon Postgres connection on startup."""
     from bot.services.clone_bot_manager import clone_manager
@@ -50,38 +90,6 @@ def main():
     # Build Application client
     app = Application.builder().token(BOT_TOKEN).post_init(post_init).build()
     
-    # Core Commands
-    app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CommandHandler("admin", admin.admin_panel))
-    
-    # Back to Menu handler
-    async def back_to_menu_callback(update, context):
-        query = update.callback_query
-        if query:
-            await query.answer()
-        
-        user_id = update.effective_user.id
-        from bot.models.user_model import get_user
-        user_record = await get_user(user_id)
-        
-        # Import to avoid circular refs
-        from bot.handlers.start import show_main_menu_message
-        await show_main_menu_message(update, context, user_record)
-
-    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Log the error and send a telegram message to notify the developer."""
-        logger.error(msg="Exception while handling an update:", exc_info=context.error)
-        
-        # Optional: notify admin
-        try:
-            if update and update.effective_user:
-                 await context.bot.send_message(
-                     chat_id=update.effective_user.id,
-                     text="⚠️ **An internal error occurred.**\nThe technical team has been notified. Please try again later."
-                 )
-        except:
-            pass
-
     # Global Error Handler
     app.add_error_handler(error_handler)
     
@@ -89,9 +97,8 @@ def main():
     app.add_handler(CommandHandler("start", start_cmd))
     app.add_handler(CommandHandler("admin", admin.admin_panel))
     
-    # Menu message handlers
-    app.add_handler(MessageHandler(filters.Regex("^⬅️ Menu$"), back_to_menu_callback))
-    
+    # Menu message handlers (Support ReplyKeyboardMarkup)
+    app.add_handler(MessageHandler(filters.Regex("^⬅️ Menu$") | filters.Regex("^⬅️ Back to Menu$"), back_to_menu_callback))
     app.add_handler(CallbackQueryHandler(back_to_menu_callback, pattern="^back_to_menu$"))
     
     # Verification triggers
@@ -121,14 +128,14 @@ def main():
     )
     app.add_handler(panel_conv)
     
-    # SMS Send Custom Conversation (14 Steps)
+    # SMS Send Custom Conversation
     sms_send_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(send_sms.send_sms_flow_start, pattern="^send_sms$")],
         states={
             send_sms.SELECTING_DEVICE: [CallbackQueryHandler(send_sms.device_selected_callback, pattern="^senddev_.*$")],
             send_sms.ENTERING_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_sms.phone_entered_callback)],
             send_sms.ENTERING_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, send_sms.message_entered_callback)],
-            send_sms.SELECTING_SIM: [CallbackQueryHandler(sim_selected_callback := send_sms.sim_selected_callback, pattern="^sendsim_.*$")]
+            send_sms.SELECTING_SIM: [CallbackQueryHandler(send_sms.sim_selected_callback, pattern="^sendsim_.*$")]
         },
         fallbacks=[
             CallbackQueryHandler(send_sms.cancel_sms_flow, pattern="^cancel_sms$"),
@@ -137,7 +144,7 @@ def main():
     )
     app.add_handler(sms_send_conv)
     
-    # SMS Intercepts viewing (Dynamic reads)
+    # SMS Intercepts viewing
     sms_receive_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(receive_sms.start_receive_sms_flow, pattern="^receive_sms$")],
         states={
@@ -165,7 +172,7 @@ def main():
     )
     app.add_handler(clone_conv)
     
-    # Super Admin Controllers (Telemetry logs, dials, stats)
+    # Super Admin Controllers
     import bot.handlers.admin.users as adm_users
     import bot.handlers.admin.user_search as adm_user_search
     
@@ -219,7 +226,7 @@ def main():
     )
     app.add_handler(user_search_conv)
     
-    # HTML Broadcaster dialog conversation
+    # Broadcast Flow
     import bot.handlers.admin.broadcast_flow as broadcast_flow
     broadcast_conv = ConversationHandler(
         entry_points=[CallbackQueryHandler(broadcast_flow.broadcast_start, pattern="^adm_broadcast$")],

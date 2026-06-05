@@ -1,12 +1,42 @@
 import logging
 import asyncio
 from typing import Dict
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+    ConversationHandler,
+    ContextTypes,
+)
+from telegram import Update
 
 from bot.database import db
 from bot.config import BOT_TOKEN
 
 logger = logging.getLogger(__name__)
+
+async def back_to_menu_callback(update: object, context: ContextTypes.DEFAULT_TYPE):
+    """Returns the user to the main menu for clone bots."""
+    if not isinstance(update, Update):
+        return
+        
+    query = update.callback_query
+    if query:
+        await query.answer()
+    
+    from bot.models.user_model import get_user
+    user_record = await get_user(update.effective_user.id)
+    
+    # Import to avoid circular refs
+    from bot.handlers.start import show_main_menu_message
+    await show_main_menu_message(update, context, user_record)
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log the error for clone bots."""
+    clone_id = context.bot_data.get("clone_id", "unknown")
+    logger.error(msg=f"Exception in Clone ID {clone_id}:", exc_info=context.error)
 
 class CloneBotManager:
     """
@@ -58,25 +88,8 @@ class CloneBotManager:
             import bot.handlers.admin as admin
             import bot.handlers.admin.broadcast_flow as broadcast_flow
             import bot.handlers.vault as vault
-            from bot.handlers.start import MAIN_MENU_REPLY_KEYBOARD
             
-            # The back_to_menu callback needs to be custom imported
-            async def back_to_menu_callback(update, context):
-                query = update.callback_query
-                if query:
-                    await query.answer()
-                from bot.models.user_model import get_user
-                user_record = await get_user(update.effective_user.id)
-                # Important: clones omit the "Create Bot" key!
-                from bot.handlers.start import show_main_menu_message
-                await show_main_menu_message(update, context, user_record)
-
-            async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
-                """Log the error and send a telegram message to notify the developer."""
-                logger.error(msg=f"Exception in Clone ID {clone_id}:", exc_info=context.error)
-            
-            # Use same handlers but we need to somehow flag to 'start_cmd' that this is a clone
-            # PTB allows `context.bot_data["is_clone"] = True`
+            # App data flags
             app.bot_data["is_clone"] = True
             app.bot_data["clone_id"] = clone_id
             
@@ -86,11 +99,10 @@ class CloneBotManager:
             app.add_handler(CommandHandler("admin", admin.admin_panel))
             
             # Menu message handlers
-            app.add_handler(MessageHandler(filters.Regex("^⬅️ Menu$"), back_to_menu_callback))
-            
+            app.add_handler(MessageHandler(filters.Regex("^⬅️ Menu$") | filters.Regex("^⬅️ Back to Menu$"), back_to_menu_callback))
             app.add_handler(CallbackQueryHandler(back_to_menu_callback, pattern="^back_to_menu$"))
-            app.add_handler(CallbackQueryHandler(verify_join_callback, pattern="^verify_join$"))
             
+            app.add_handler(CallbackQueryHandler(verify_join_callback, pattern="^verify_join$"))
             app.add_handler(CallbackQueryHandler(referral_menu, pattern="^refer$"))
             app.add_handler(CallbackQueryHandler(wallet_menu, pattern="^wallet$"))
             app.add_handler(CallbackQueryHandler(support_menu, pattern="^support$"))
@@ -129,8 +141,6 @@ class CloneBotManager:
                 fallbacks=[CallbackQueryHandler(send_sms.cancel_sms_flow, pattern="^cancel_sms$"), CommandHandler("cancel", start_cmd)]
             )
             app.add_handler(sms_receive_conv)
-            
-            # NOTE: We DO NOT add create_bot handlers for clones
             
             app.add_handler(CallbackQueryHandler(admin.admin_panel, pattern="^admin_menu$"))
             app.add_handler(CallbackQueryHandler(admin.analytics_view, pattern="^adm_analytics$"))
